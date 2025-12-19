@@ -109,8 +109,6 @@ polygram/
 └── README.md               # This file
 ```
 
-## Development 💻
-
 ### Available Scripts
 
 - `npm start` - Start the bot in production mode
@@ -122,28 +120,3 @@ polygram/
 1. **New Commands**: Add to `src/bot/commands.js`
 2. **API Integration**: Extend `src/services/polymarketService.js`
 3. **Callbacks**: Add to `src/bot/callbacks.js`
-
-## Roadmap 🗺️
-
-### MVP (Current)
-- [x] Basic bot setup
-- [x] Wallet connection
-- [x] Position tracking
-- [x] PNL calculation
-- [x] Market browsing
-
-### Future Features
-- [ ] Database integration for user data persistence
-- [ ] Push notifications for position changes
-- [ ] Chart generation and visualization
-- [ ] Portfolio analytics
-- [ ] Multi-wallet support
-- [ ] Trading alerts and signals
-
-## Contributing 🤝
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
