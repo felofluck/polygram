@@ -147,21 +147,3 @@ polygram/
 3. Make your changes
 4. Add tests if applicable
 5. Submit a pull request
-
-## License 📄
-
-MIT License - see LICENSE file for details
-
-## Support 💬
-
-For support or questions:
-- Create an issue on GitHub
-- Contact the development team
-
-## Disclaimer ⚠️
-
-This bot is for informational purposes only. Always verify data independently and never share private keys or seed phrases.
-
----
-
-**Built with ❤️ for the Polymarket community**
