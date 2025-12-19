@@ -7,7 +7,7 @@ class MonitorService {
     // Map<walletAddress, { lastTimestamp: number, processedSignatures: Set<string> }>
     this.walletStates = new Map();
     this.isMonitoring = false;
-    this.checkInterval = 10000; // 10 seconds for faster alerts
+    this.checkInterval = 1000; // 1 second for faster alerts
     this.service = polymarketService;
   }
 

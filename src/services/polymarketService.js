@@ -277,7 +277,9 @@ class PolymarketService {
         noVolume: s.noShares * s.noAvg, // Approximate value
         avgTime: avgTimeMs / 1000 // seconds
       };
-    }).sort((a, b) => b.trades - a.trades); // Sort by most active
+    })
+    .filter(s => s.yesShares > 0 || s.noShares > 0) // Remove positions with no shares
+    .sort((a, b) => b.trades - a.trades); // Sort by most active
   }
 
   /**
