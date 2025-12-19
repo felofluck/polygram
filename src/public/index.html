@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polygram - Market Statistics</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Market Statistics</h1>
+            <div class="wallet-input">
+                <input type="text" id="wallet-address" placeholder="Enter Wallet Address (0x...)">
+                <button id="track-btn">Track</button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="col-market">MARKET</th>
+                        <th class="col-trades">TRADES</th>
+                        <th class="col-first">FIRST TRADE</th>
+                        <th class="col-avg">YES AVG</th>
+                        <th class="col-avg">NO AVG</th>
+                        <th class="col-sum">AVG SUM</th>
+                        <th class="col-shares">YES SHARES</th>
+                        <th class="col-shares">NO SHARES</th>
+                        <th class="col-time">AVG TIME</th>
+                    </tr>
+                </thead>
+                <tbody id="stats-body">
+                    <!-- Rows will be populated by JS -->
+                    <tr class="loading-row">
+                        <td colspan="9">Loading data...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="footer">
+            <p>Auto-refreshing every 5 seconds • <span id="last-updated">Never</span></p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

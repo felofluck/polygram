@@ -8,6 +8,9 @@ const helmet = require('helmet');
 const { setupBotCommands } = require('./bot/commands');
 const { setupBotCallbacks } = require('./bot/callbacks');
 const polymarketService = require('./services/polymarketService');
+const monitorService = require('./services/monitorService');
+
+const path = require('path');
 
 // Initialize Express app
 const app = express();
@@ -17,6 +20,23 @@ const PORT = process.env.PORT || 3000;
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// API Routes
+app.get('/api/stats', async (req, res) => {
+  const { wallet } = req.query;
+  if (!wallet) {
+    return res.status(400).json({ error: 'Wallet address required' });
+  }
+  
+  try {
+    const stats = await polymarketService.getMarketStats(wallet);
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
 
 // Initialize Telegram Bot
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, {
@@ -35,6 +55,7 @@ app.get('/health', (req, res) => {
 // Setup bot commands and callbacks
 setupBotCommands(bot);
 setupBotCallbacks(bot);
+monitorService.start(bot);
 
 // Error handling for bot
 bot.on('error', (error) => {

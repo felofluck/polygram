@@ -135,12 +135,13 @@ class PolymarketService {
    * @param {string} walletAddress - User's wallet address
    * @returns {Promise<Array>} Array of trades
    */
-  async getUserTrades(walletAddress) {
+  async getUserTrades(walletAddress, limit = 50) {
     try {
       const response = await this.dataApi.get(`/trades`, {
         params: {
           user: walletAddress.toLowerCase(),
-          limit: 1000
+          limit: limit,
+          t: Date.now() // Cache busting
         }
       });
       
@@ -148,21 +149,135 @@ class PolymarketService {
         return [];
       }
       
-      return response.data.map(trade => ({
-        id: trade.conditionId,
-        market: trade.title || 'Unknown Market',
-        side: trade.side,
-        size: parseFloat(trade.size || 0),
-        price: parseFloat(trade.price || 0),
-        volume: parseFloat(trade.size || 0) * parseFloat(trade.price || 0),
-        timestamp: new Date(trade.timestamp * 1000), // Convert from Unix timestamp
-        pnl: 0 // PNL calculation would need more complex logic
-      }));
+      return response.data.map(trade => {
+        // Ensure timestamp is a valid number before converting
+        const timestampVal = Number(trade.timestamp);
+        const timestamp = !isNaN(timestampVal) ? new Date(timestampVal * 1000) : new Date();
+
+        return {
+          id: trade.conditionId || trade.id || 'unknown',
+          market: trade.title || 'Unknown Market',
+          side: trade.side || 'UNKNOWN',
+          size: parseFloat(trade.size || 0),
+          price: parseFloat(trade.price || 0),
+          volume: parseFloat(trade.size || 0) * parseFloat(trade.price || 0),
+          timestamp: timestamp,
+          pnl: 0,
+          transactionHash: trade.transactionHash || `pending-${Date.now()}`,
+          outcome: trade.outcome,
+          conditionId: trade.conditionId,
+          asset: trade.asset
+        };
+      });
       
     } catch (error) {
-      console.error('Error fetching user trades:', error);
+      console.error('Error fetching user trades:', error.message);
       return [];
     }
+  }
+
+  /**
+   * Get market statistics for a wallet
+   * @param {string} walletAddress 
+   * @returns {Promise<Array>} Aggregated stats
+   */
+  async getMarketStats(walletAddress) {
+    const trades = await this.getUserTrades(walletAddress, 1000);
+    const positions = await this.getUserPositions(walletAddress);
+    const stats = {};
+
+    // Helper to normalize side
+    const isYes = (side) => ['YES', 'UP'].includes(side?.toUpperCase());
+    const isNo = (side) => ['NO', 'DOWN'].includes(side?.toUpperCase());
+
+    // 1. Aggregate Trades for Activity Stats
+    for (const trade of trades) {
+      if (!stats[trade.market]) {
+        stats[trade.market] = {
+          market: trade.market,
+          trades: 0,
+          firstTrade: trade, 
+          timestamps: [],
+          // Position data will be filled from positions
+          yesShares: 0,
+          yesAvg: 0,
+          noShares: 0,
+          noAvg: 0
+        };
+      }
+      
+      const marketStats = stats[trade.market];
+      marketStats.trades++;
+      marketStats.timestamps.push(trade.timestamp.getTime());
+      
+      // Track oldest trade
+      if (trade.timestamp < marketStats.firstTrade.timestamp) {
+        marketStats.firstTrade = trade;
+      }
+    }
+    
+    // 2. Map Positions to Markets
+    for (const position of positions) {
+      // Find matching market in stats (or create if only position exists but no recent trades?)
+      // Usually if there is a position, there must be trades. 
+      // But if trades > 1000, maybe we missed them. 
+      // For now, only map to existing stats or create new entry.
+      
+      if (!stats[position.market]) {
+         // Create entry if position exists but no trades in last 1000
+         stats[position.market] = {
+            market: position.market,
+            trades: 0,
+            firstTrade: { 
+                side: position.side, 
+                price: position.avgPrice, 
+                size: position.amount, 
+                timestamp: new Date() // Unknown
+            },
+            timestamps: [],
+            yesShares: 0,
+            yesAvg: 0,
+            noShares: 0,
+            noAvg: 0
+         };
+      }
+
+      const marketStats = stats[position.market];
+      
+      if (isYes(position.side)) {
+        marketStats.yesShares = position.amount;
+        marketStats.yesAvg = position.avgPrice;
+      } else if (isNo(position.side)) {
+        marketStats.noShares = position.amount;
+        marketStats.noAvg = position.avgPrice;
+      }
+    }
+
+    // Finalize calculations
+    return Object.values(stats).map(s => {
+      const duration = s.timestamps.length > 1 
+        ? (Math.max(...s.timestamps) - Math.min(...s.timestamps)) 
+        : 0;
+      const avgTimeMs = s.trades > 1 ? duration / (s.trades - 1) : 0;
+      
+      return {
+        market: s.market,
+        trades: s.trades,
+        firstTrade: {
+          side: s.firstTrade.side,
+          price: s.firstTrade.price,
+          size: s.firstTrade.size,
+          timestamp: s.firstTrade.timestamp
+        },
+        yesAvg: s.yesAvg,
+        noAvg: s.noAvg,
+        yesShares: s.yesShares,
+        yesVolume: s.yesShares * s.yesAvg, // Approximate value
+        noShares: s.noShares,
+        noVolume: s.noShares * s.noAvg, // Approximate value
+        avgTime: avgTimeMs / 1000 // seconds
+      };
+    }).sort((a, b) => b.trades - a.trades); // Sort by most active
   }
 
   /**

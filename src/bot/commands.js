@@ -1,5 +1,6 @@
 const polymarketService = require('../services/polymarketService');
 const walletStorage = require('../services/walletStorage');
+const monitorService = require('../services/monitorService');
 
 function setupBotCommands(bot) {
   // Start command
@@ -14,20 +15,32 @@ I'm your Polymarket companion bot. I can help you:
 💰 *Check PNL* - See your profit and loss across all positions
 📈 *Market charts* - View price charts and market data
 🔗 *Connect wallet* - Link your wallet to access your data
+👀 *Track wallet* - Monitor specific wallets for real-time transactions
 
-*Available Commands:*
-/start - Show this welcome message
-/help - Get detailed help information
-/connect - Connect your Polymarket wallet
-/positions - View your current positions
-/pnl - Check your profit and loss
-/markets - Browse available markets
-/status - Check bot and connection status
-
-To get started, use /connect to link your wallet!
+*Choose an option below:*
     `;
     
-    bot.sendMessage(chatId, welcomeMessage, { parse_mode: 'Markdown' });
+    const options = {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '🔗 Connect Wallet', callback_data: 'connect_wallet' },
+            { text: '👀 Track Wallet', callback_data: 'track_wallet_menu' }
+          ],
+          [
+            { text: '📊 Positions', callback_data: 'view_positions' },
+            { text: '💰 Check PNL', callback_data: 'check_pnl' }
+          ],
+          [
+            { text: '📈 Markets', callback_data: 'browse_markets' },
+            { text: 'ℹ️ Help', callback_data: 'get_help' }
+          ]
+        ]
+      }
+    };
+
+    bot.sendMessage(chatId, welcomeMessage, options);
   });
 
   // Help command
@@ -37,30 +50,139 @@ To get started, use /connect to link your wallet!
 🆘 *Polygram Bot Help*
 
 *Commands:*
-• /start - Welcome message and overview
+• /start - Welcome message and main menu
 • /help - This help message
 • /connect - Connect your Polymarket wallet
+• /track - Track a specific wallet for real-time alerts
 • /positions - View your current positions
 • /pnl - Check profit and loss
 • /markets - Browse markets
 • /status - Check connection status
+• /stop_track - Stop tracking a wallet
 
 *How to connect your wallet:*
-1. Use /connect command
+1. Use /connect command or button
 2. Follow the instructions to link your wallet
 3. Once connected, you can view positions and PNL
+
+*How to track a wallet:*
+1. Use /track command or button
+2. Enter the wallet address you want to monitor
+3. Receive real-time alerts for transactions
 
 *Features:*
 📊 Real-time position tracking
 💰 PNL calculations
 📈 Market data and charts
-🔔 Optional notifications (coming soon)
+🔔 Real-time transaction alerts for tracked wallets
 
 *Need more help?*
 Contact support or check our documentation.
     `;
     
-    bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
+    const options = {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🔙 Main Menu', callback_data: 'main_menu' }]
+        ]
+      }
+    };
+    
+    bot.sendMessage(chatId, helpMessage, options);
+  });
+
+  // Track wallet command
+  bot.onText(/\/track/, async (msg) => {
+    const chatId = msg.chat.id;
+    const args = msg.text.split(' ');
+    
+    if (args.length > 1) {
+      // User provided wallet address directly: /track 0x...
+      const walletAddress = args[1];
+      if (walletAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+        monitorService.trackWallet(chatId, walletAddress);
+        bot.sendMessage(chatId, `✅ *Tracking Started*\n\nNow monitoring wallet: \`${walletAddress}\`\n\nYou will receive alerts for new transactions.`, { parse_mode: 'Markdown' });
+      } else {
+        bot.sendMessage(chatId, `❌ *Invalid Wallet Address*\n\nPlease provide a valid Ethereum address starting with 0x.`, { parse_mode: 'Markdown' });
+      }
+    } else {
+      // Show menu to enter wallet
+      const message = `
+👀 *Track Wallet*
+
+Enter the wallet address you want to monitor for real-time transactions.
+
+*Format:* 0x followed by 40 hexadecimal characters
+      `;
+      
+      const options = {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📝 Enter Wallet to Track', callback_data: 'enter_track_wallet' }],
+            [{ text: '� List Tracked Wallets', callback_data: 'list_tracked_wallets' }],
+            [{ text: '� Main Menu', callback_data: 'main_menu' }]
+          ]
+        }
+      };
+      
+      bot.sendMessage(chatId, message, options);
+    }
+  });
+
+  // Stop Track command
+  bot.onText(/\/stop_track/, (msg) => {
+    const chatId = msg.chat.id;
+    const args = msg.text.split(' ');
+    
+    if (args.length > 1) {
+      const walletAddress = args[1];
+      if (monitorService.untrackWallet(chatId, walletAddress)) {
+        bot.sendMessage(chatId, `✅ *Stopped Tracking*\n\nRemoved wallet: \`${walletAddress}\``, { parse_mode: 'Markdown' });
+      } else {
+        bot.sendMessage(chatId, `❌ *Error*\n\nYou are not tracking this wallet.`, { parse_mode: 'Markdown' });
+      }
+    } else {
+      // List wallets to stop
+      const trackedWallets = monitorService.getTrackedWallets(chatId);
+      
+      if (trackedWallets.length === 0) {
+        bot.sendMessage(chatId, '❌ You are not tracking any wallets.');
+        return;
+      }
+      
+      const keyboard = trackedWallets.map(wallet => ([
+        { text: `🛑 Stop ${wallet.slice(0, 6)}...${wallet.slice(-4)}`, callback_data: `stop_track_${wallet}` }
+      ]));
+      
+      keyboard.push([{ text: '🔙 Back', callback_data: 'track_wallet_menu' }]);
+      
+      bot.sendMessage(chatId, '🛑 *Select a wallet to stop tracking:*', {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: keyboard
+        }
+      });
+    }
+  });
+
+  // List Tracking command
+  bot.onText(/\/tracking/, (msg) => {
+    const chatId = msg.chat.id;
+    const trackedWallets = monitorService.getTrackedWallets(chatId);
+    
+    if (trackedWallets.length === 0) {
+      bot.sendMessage(chatId, 'You are not tracking any wallets.');
+      return;
+    }
+    
+    let message = '👀 *Currently Tracked Wallets:*\n\n';
+    trackedWallets.forEach((wallet, index) => {
+      message += `${index + 1}. \`${wallet}\`\n`;
+    });
+    
+    bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
   });
 
   // Connect wallet command
@@ -227,15 +349,18 @@ ${!walletAddress ? '💡 Use /connect to link your wallet and access all feature
     bot.sendMessage(chatId, statusMessage, { parse_mode: 'Markdown' });
   });
 
-  // Handle wallet address input
-  bot.on('message', (msg) => {
+  // Monitor Whale Command
+  bot.onText(/\/monitor_whale/, (msg) => {
     const chatId = msg.chat.id;
-    const text = msg.text;
-    
-    // Check if message is a wallet address (42 characters starting with 0x)
-    if (text && text.match(/^0x[a-fA-F0-9]{40}$/)) {
-      handleWalletAddress(bot, chatId, text);
-    }
+    monitorService.addSubscriber(chatId);
+    bot.sendMessage(chatId, '🐋 *Whale Monitoring Started*\n\nYou will receive alerts for new transactions from the target wallet.', { parse_mode: 'Markdown' });
+  });
+
+  // Stop Monitor Command
+  bot.onText(/\/stop_monitor/, (msg) => {
+    const chatId = msg.chat.id;
+    monitorService.removeSubscriber(chatId);
+    bot.sendMessage(chatId, '🔕 *Monitoring Stopped*', { parse_mode: 'Markdown' });
   });
 
   // Handle text messages (for wallet address input)
@@ -254,6 +379,16 @@ ${!walletAddress ? '💡 Use /connect to link your wallet and access all feature
     if (userState === 'awaiting_wallet') {
       // User is expected to send wallet address
       await handleWalletAddress(bot, chatId, text.trim());
+    } else if (userState === 'awaiting_track_wallet') {
+      // User is expected to send wallet address to track
+      const walletAddress = text.trim();
+      if (walletAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+        monitorService.trackWallet(chatId, walletAddress);
+        walletStorage.clearUserState(chatId);
+        bot.sendMessage(chatId, `✅ *Tracking Started*\n\nNow monitoring wallet: \`${walletAddress}\`\n\nYou will receive alerts for new transactions.`, { parse_mode: 'Markdown' });
+      } else {
+        bot.sendMessage(chatId, `❌ *Invalid Wallet Address*\n\nPlease provide a valid Ethereum address starting with 0x.`);
+      }
     } else if (text && text.match(/^0x[a-fA-F0-9]{40}$/)) {
       // User sent what looks like a wallet address without being prompted
       bot.sendMessage(chatId, `🔗 I detected a wallet address! 
